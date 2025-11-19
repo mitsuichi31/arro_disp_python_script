@@ -141,10 +141,20 @@ while running:
                 elif event.key == pygame.K_v:
                     vlc_path = r'C:\Program Files\VideoLAN\VLC\vlc.exe'
                     try:
+                        # 2枚目のディスプレイ(スクリーン番号1)でフルスクリーン表示
+                        # スクリーン番号は0から始まるため、2枚目は1
+
                         # 動画再生を開始し、プロセスを保持
-                        video_process = subprocess.Popen([vlc_path, video_file_path, '--fullscreen', '--play-and-exit'])
+                        video_process = subprocess.Popen([
+                            vlc_path,
+                            video_file_path,
+                            '--no-video-title-show',         # タイトル表示を無効化
+                            '--qt-fullscreen-screennumber=1', # 2枚目のディスプレイを指定(0始まり)
+                            '--fullscreen',                   # フルスクリーン表示
+                            '--play-and-exit'
+                        ])
                         is_video_playing = True
-                        print(f"動画ファイル {video_file_path} をVLCで再生開始しました。Pygameのキー入力を無効にしました。")
+                        print(f"動画ファイル {video_file_path} を2枚目のディスプレイ(screen1)でフルスクリーン再生開始しました。Pygameのキー入力を無効にしました。")
                     except FileNotFoundError:
                         print("エラー: VLC media playerが見つかりません。パスを確認してください。")
                     except Exception as e:
