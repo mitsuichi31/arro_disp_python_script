@@ -70,18 +70,18 @@ special_files = [
     "./all/7.png",
 ]  # 特殊表示リスト
 auto_files = [
-    "./FCT/welcome.png",
-    "./images/1.png",
-    "./images/2.png",
-    "./images/3.png",
-    "./images/4.png",
-    "./images/5.png",
-    "./images/6.png",
-    "./images/7.png",
-    "./images/8.png",
-    "./images/9.png",
-    "./images/10.png",
-    "./images/11.mp4",
+    "./auto/welcome.png",
+    "./auto/1.png",
+    "./auto/2.png",
+    "./auto/3.png",
+    "./auto/4.png",
+    "./auto/5.png",
+    "./auto/6.png",
+    "./auto/7.png",
+    "./auto/8.png",
+    "./auto/9.png",
+    "./auto/10.png",
+    "./auto/11.mp4",
 ]  # 自動切り替えリスト（動画も可）
 
 video_file_path = "./FCT/video.mp4"  # ここを動画のパスに修正
@@ -150,8 +150,12 @@ def start_video(video_path):
     global is_video_playing, video_process
     vlc_path = r"C:\Program Files\VideoLAN\VLC\vlc.exe"
     try:
+        # "C:\Program Files\VideoLAN\VLC\vlc.exe" --video-splitter=wall --wall-cols=2 --wall-rows=1 --no-embedded-video --fullscreen --qt-fullscreen-screennumber=0
+        # video_process = subprocess.Popen(
+        #     [vlc_path, video_path, "--video-splitter=wall", "--wall-cols=2", "--wall-rows=1", "--no-embedded-video", "--fullscreen", "--qt-fullscreen-screennumber=0"]
+        # )
         video_process = subprocess.Popen(
-            [vlc_path, video_path, "--fullscreen", "--play-and-exit"]
+            [vlc_path, video_path, "--fullscreen", "--play-and-exit", "--no-audio"]
         )
         is_video_playing = True
         print(
