@@ -142,6 +142,7 @@ while running:
                     vlc_path = r'C:\Program Files\VideoLAN\VLC\vlc.exe'
                     try:
                         # 動画再生を開始し、プロセスを保持
+                        # "C:\Program Files\VideoLAN\VLC\vlc.exe" --video-splitter=wall --wall-cols=2 --wall-rows=1 --no-embedded-video --fullscreen --qt-fullscreen-screennumber=0
                         video_process = subprocess.Popen([vlc_path, video_file_path, '--fullscreen', '--play-and-exit'])
                         is_video_playing = True
                         print(f"動画ファイル {video_file_path} をVLCで再生開始しました。Pygameのキー入力を無効にしました。")
