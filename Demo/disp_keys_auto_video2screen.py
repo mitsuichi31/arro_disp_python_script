@@ -13,6 +13,18 @@ def parse_args():
         action="store_true",
         help="単一画面で動作（画面サイズは自動取得）",
     )
+    parser.add_argument(
+        "--mute",
+        action="store_true",
+        default=True,
+        help="動画再生を無音にする（デフォルト: 有効）",
+    )
+    parser.add_argument(
+        "--with-audio",
+        action="store_false",
+        dest="mute",
+        help="動画再生を有音にする",
+    )
     return parser.parse_args()
 
 
@@ -69,20 +81,24 @@ special_files = [
     "./all/6.png",
     "./all/7.png",
 ]  # 特殊表示リスト
-auto_files = [
-    "./auto/welcome.png",
-    "./auto/1.png",
-    "./auto/2.png",
-    "./auto/3.png",
-    "./auto/4.png",
-    "./auto/5.png",
-    "./auto/6.png",
-    "./auto/7.png",
-    "./auto/8.png",
-    "./auto/9.png",
-    "./auto/10.png",
-    "./auto/11.mp4",
-]  # 自動切り替えリスト（動画も可）
+
+def get_auto_files(directory):
+    """autoフォルダ内の画像/動画ファイルを自動検出して返す。"""
+    if not os.path.isdir(directory):
+        return []
+    auto_list = []
+    # ファイル名の昇順（辞書順）で並べる
+    for filename in sorted(os.listdir(directory)):
+        path = os.path.join(directory, filename)
+        if not os.path.isfile(path):
+            continue
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in IMAGE_EXTENSIONS or ext in VIDEO_EXTENSIONS:
+            auto_list.append(path)
+    return auto_list
+
+
+auto_files = get_auto_files("./auto")  # 自動切り替えリスト（動画も可）
 
 video_file_path = "./FCT/video.mp4"  # ここを動画のパスに修正
 
@@ -154,9 +170,12 @@ def start_video(video_path):
         # video_process = subprocess.Popen(
         #     [vlc_path, video_path, "--video-splitter=wall", "--wall-cols=2", "--wall-rows=1", "--no-embedded-video", "--fullscreen", "--qt-fullscreen-screennumber=0"]
         # )
-        video_process = subprocess.Popen(
-            [vlc_path, video_path, "--fullscreen", "--play-and-exit", "--no-audio"]
-        )
+        vlc_args = [vlc_path, video_path, "--fullscreen", "--play-and-exit"]
+        if args.mute:
+            vlc_args.append("--no-audio")
+        else:
+            vlc_args.append("--audio")
+        video_process = subprocess.Popen(vlc_args)
         is_video_playing = True
         print(
             f"動画ファイル {video_path} をVLCで再生開始しました。"
@@ -185,9 +204,13 @@ def set_auto_item(index):
 
 # 起動時タイマー開始ロジック
 if auto_mode_active:
-    print("スクリプト起動時、自動切り替えモードで開始しました")
-    pygame.time.set_timer(IMAGE_SWITCH_EVENT, SWITCH_INTERVAL_MS)
-    set_auto_item(current_auto_index)
+    if auto_files:
+        print("スクリプト起動時、自動切り替えモードで開始しました")
+        pygame.time.set_timer(IMAGE_SWITCH_EVENT, SWITCH_INTERVAL_MS)
+        set_auto_item(current_auto_index)
+    else:
+        print("autoフォルダに対象ファイルがありません。自動切り替えモードを無効化します。")
+        auto_mode_active = False
 
 last_image = pygame.Surface((screen_width, screen_height))
 last_image.fill((0, 0, 0))
@@ -209,7 +232,12 @@ while running:
 
         # --- 自動切り替えイベント処理 ---
         # 動画再生中は自動切り替えも停止
-        if event.type == IMAGE_SWITCH_EVENT and auto_mode_active and not is_video_playing:
+        if (
+            event.type == IMAGE_SWITCH_EVENT
+            and auto_mode_active
+            and not is_video_playing
+            and auto_files
+        ):
             current_auto_index = (current_auto_index + 1) % len(auto_files)
             special_image_file = ""
             set_auto_item(current_auto_index)
@@ -229,11 +257,17 @@ while running:
             if event.key == pygame.K_t:
                 auto_mode_active = not auto_mode_active
                 if auto_mode_active:
-                    print("自動切り替えモードをONにしました。auto_filesが表示されます")
-                    pygame.time.set_timer(IMAGE_SWITCH_EVENT, SWITCH_INTERVAL_MS)
-                    current_auto_index = 0
-                    special_image_file = ""
-                    set_auto_item(current_auto_index)
+                    if auto_files:
+                        print("自動切り替えモードをONにしました。auto_filesが表示されます")
+                        pygame.time.set_timer(IMAGE_SWITCH_EVENT, SWITCH_INTERVAL_MS)
+                        current_auto_index = 0
+                        special_image_file = ""
+                        set_auto_item(current_auto_index)
+                    else:
+                        print(
+                            "autoフォルダに対象ファイルがありません。自動切り替えモードを無効化します。"
+                        )
+                        auto_mode_active = False
                 else:
                     print("自動切り替えモードをOFFにしました。image_filesが表示されます")
                     pygame.time.set_timer(IMAGE_SWITCH_EVENT, 0)
