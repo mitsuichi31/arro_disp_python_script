@@ -170,11 +170,10 @@ def start_video(video_path):
         # video_process = subprocess.Popen(
         #     [vlc_path, video_path, "--video-splitter=wall", "--wall-cols=2", "--wall-rows=1", "--no-embedded-video", "--fullscreen", "--qt-fullscreen-screennumber=0"]
         # )
-        vlc_args = [vlc_path, video_path, "--fullscreen", "--play-and-exit"]
+        vlc_args = [vlc_path, video_path, "--fullscreen", "--play-and-exit", "--no-video-title-show", "--no-osd"]
         if args.mute:
             vlc_args.append("--no-audio")
-        else:
-            vlc_args.append("--audio")
+        print(f"VLC起動引数: {vlc_args}")
         video_process = subprocess.Popen(vlc_args)
         is_video_playing = True
         print(
@@ -187,6 +186,14 @@ def start_video(video_path):
     except Exception as e:
         print(f"動画再生中にエラーが発生しました: {e}")
     return False
+
+
+def stop_video():
+    global is_video_playing, video_process
+    if video_process:
+        video_process.terminate()
+        video_process = None
+    is_video_playing = False
 
 
 def set_auto_item(index):
@@ -243,9 +250,12 @@ while running:
             set_auto_item(current_auto_index)
         # -----------------------------------
 
-        # --- 動画再生中はキー入力を無視 ---
-        if is_video_playing:
+        # --- 動画再生中は Bキーのみ停止を受け付ける ---
+        if is_video_playing and event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_b:
+                stop_video()
             continue
+        # ------------------------------------------
         # ------------------------------------------
 
         if event.type == pygame.KEYDOWN:
