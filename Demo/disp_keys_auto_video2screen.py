@@ -5,6 +5,9 @@ import subprocess  # 外部プログラムを起動するために使用
 import pygame
 from PIL import Image
 
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv"}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif"}
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="pygame デモの起動オプション")
@@ -29,12 +32,18 @@ def parse_args():
 
 
 def get_image_files(directory):
-    """指定したディレクトリからGIFファイルを探してリストで返す。"""
-    image_files = []
-    for filename in os.listdir(directory):
-        if filename.endswith(".gif"):
-            image_files.append(os.path.join(directory, filename))
-    return image_files
+    """指定したディレクトリから画像ファイルを探してリストで返す。"""
+    if not os.path.isdir(directory):
+        return []
+    image_list = []
+    for filename in sorted(os.listdir(directory)):
+        path = os.path.join(directory, filename)
+        if not os.path.isfile(path):
+            continue
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in IMAGE_EXTENSIONS:
+            image_list.append(path)
+    return image_list
 
 
 # PillowによるGIF読み込みとフレーム取得（現状未使用だが残しておく）
@@ -54,24 +63,8 @@ def load_gif_frames(filename):
     return frames
 
 
-VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv"}
-IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif"}
-
 # --- 画像ファイルの定義 ---
-image_files = [
-    "./images/1.png",
-    "./images/start.png",
-    "./images/2.png",
-    "./images/3.png",
-    "./images/4.png",
-    "./images/5.png",
-    "./images/6.png",
-    "./images/7.png",
-    "./images/8.png",
-    "./images/9.png",
-    "./images/10.png",
-    "./images/stop.png",
-]  # 画像リスト
+image_files = get_image_files("./images")  # 画像リスト（自動取得）
 special_files = [
     "./all/1.png",
     "./all/2.png",
@@ -101,6 +94,7 @@ def get_auto_files(directory):
 auto_files = get_auto_files("./auto")  # 自動切り替えリスト（動画も可）
 
 video_file_path = "./FCT/video.mp4"  # ここを動画のパスに修正
+vlc_audio_device = os.environ.get("VLC_AUDIO_DEVICE", "")
 
 # --- 自動切り替えモード用の定数と変数 ---
 IMAGE_SWITCH_EVENT = pygame.USEREVENT + 1  # カスタムイベントを定義
@@ -162,6 +156,15 @@ def is_image_file(path):
     return os.path.splitext(path)[1].lower() in IMAGE_EXTENSIONS
 
 
+def load_and_scale_image(path, size):
+    try:
+        image = pygame.image.load(path)
+    except Exception as e:
+        print(f"画像の読み込みに失敗しました: {path} ({e})")
+        return None
+    return pygame.transform.scale(image, size)
+
+
 def start_video(video_path):
     global is_video_playing, video_process
     vlc_path = r"C:\Program Files\VideoLAN\VLC\vlc.exe"
@@ -170,9 +173,20 @@ def start_video(video_path):
         # video_process = subprocess.Popen(
         #     [vlc_path, video_path, "--video-splitter=wall", "--wall-cols=2", "--wall-rows=1", "--no-embedded-video", "--fullscreen", "--qt-fullscreen-screennumber=0"]
         # )
-        vlc_args = [vlc_path, video_path, "--fullscreen", "--play-and-exit", "--no-video-title-show", "--no-osd"]
+        vlc_args = [
+            vlc_path,
+            video_path,
+            "--fullscreen",
+            "--play-and-exit",
+            "--no-video-title-show",
+            "--no-osd",
+            "--no-qt-fs-controller",
+            "--no-video-deco",
+        ]
         if args.mute:
             vlc_args.append("--no-audio")
+        if vlc_audio_device:
+            vlc_args.extend(["--directx-audio-device", vlc_audio_device])
         print(f"VLC起動引数: {vlc_args}")
         video_process = subprocess.Popen(vlc_args)
         is_video_playing = True
@@ -194,6 +208,15 @@ def stop_video():
         video_process.terminate()
         video_process = None
     is_video_playing = False
+    advance_auto_after_video()
+
+
+def advance_auto_after_video():
+    global current_auto_index, special_image_file
+    if auto_mode_active and auto_files:
+        current_auto_index = (current_auto_index + 1) % len(auto_files)
+        special_image_file = ""
+        set_auto_item(current_auto_index)
 
 
 def set_auto_item(index):
@@ -231,6 +254,7 @@ while running:
             is_video_playing = False
             video_process = None
             print("動画再生が終了しました。キー入力を再開します。")
+            advance_auto_after_video()
     # ---------------------------------------------
 
     for event in pygame.event.get():
@@ -249,6 +273,11 @@ while running:
             special_image_file = ""
             set_auto_item(current_auto_index)
         # -----------------------------------
+
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            running = False
+            stop_video()
+            continue
 
         # --- 動画再生中は Bキーのみ停止を受け付ける ---
         if is_video_playing and event.type == pygame.KEYDOWN:
@@ -285,20 +314,19 @@ while running:
 
             # 自動モードOFF時のみ、手動切り替え・動画・特殊キーを処理
             if not auto_mode_active:
-                if event.key == pygame.K_SPACE:
-                    current_image_index = (current_image_index + 1) % len(image_files)
-                elif event.key == pygame.K_RIGHT:
-                    current_image_index = (current_image_index + 1) % len(image_files)
-                elif event.key == pygame.K_LEFT:
-                    current_image_index = (current_image_index - 1) % len(image_files)
+                if image_files:
+                    if event.key == pygame.K_SPACE:
+                        current_image_index = (current_image_index + 1) % len(image_files)
+                    elif event.key == pygame.K_RIGHT:
+                        current_image_index = (current_image_index + 1) % len(image_files)
+                    elif event.key == pygame.K_LEFT:
+                        current_image_index = (current_image_index - 1) % len(image_files)
 
                 # --- 動画再生キー (Vキー) の処理 ---
                 elif event.key == pygame.K_v:
                     start_video(video_file_path)
                 # ------------------------------------------
 
-                elif event.key == pygame.K_ESCAPE:
-                    running = False
                 elif event.key == pygame.K_s:
                     special_image_file = "./zhaodi/start-3.png"
                 elif event.key == pygame.K_e:
@@ -321,19 +349,22 @@ while running:
 
     # --- 画像の選択と読み込み（動画再生中も背景は更新） ---
     if special_image_file != "":
-        image = pygame.image.load(special_image_file)
-        image = pygame.transform.scale(image, (screen_width, screen_height))
-        last_image = image
+        image = load_and_scale_image(special_image_file, (screen_width, screen_height))
+        if image is not None:
+            last_image = image
     elif auto_mode_active:
         if current_image_path and is_image_file(current_image_path):
-            image = pygame.image.load(current_image_path)
-            image = pygame.transform.scale(image, (screen_width, screen_height))
-            last_image = image
+            image = load_and_scale_image(current_image_path, (screen_width, screen_height))
+            if image is not None:
+                last_image = image
     else:
-        current_image_index = current_image_index % len(image_files)
-        image = pygame.image.load(image_files[current_image_index])
-        image = pygame.transform.scale(image, (screen_width, screen_height))
-        last_image = image
+        if image_files:
+            current_image_index = current_image_index % len(image_files)
+            image = load_and_scale_image(
+                image_files[current_image_index], (screen_width, screen_height)
+            )
+            if image is not None:
+                last_image = image
 
     # 画像を各ディスプレイに描画
     image_to_draw = last_image
