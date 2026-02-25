@@ -165,10 +165,21 @@ def load_and_scale_image(path, size):
     return pygame.transform.scale(image, size)
 
 
+def clear_to_black():
+    screen1.fill((0, 0, 0))
+    if screen2 is not None:
+        screen2.fill((0, 0, 0))
+    pygame.display.flip()
+
+
 def start_video(video_path):
-    global is_video_playing, video_process
-    vlc_path = r"C:\Program Files\VideoLAN\VLC\vlc.exe"
+    global is_video_playing, video_process, last_image
+    vlc_gui = r"C:\Program Files\VideoLAN\VLC\vlc.exe"
+    vlc_cli = r"C:\Program Files\VideoLAN\VLC\cvlc.exe"
+    vlc_path = vlc_cli if os.path.isfile(vlc_cli) else vlc_gui
     try:
+        last_image = black_image
+        clear_to_black()
         # "C:\Program Files\VideoLAN\VLC\vlc.exe" --video-splitter=wall --wall-cols=2 --wall-rows=1 --no-embedded-video --fullscreen --qt-fullscreen-screennumber=0
         # video_process = subprocess.Popen(
         #     [vlc_path, video_path, "--video-splitter=wall", "--wall-cols=2", "--wall-rows=1", "--no-embedded-video", "--fullscreen", "--qt-fullscreen-screennumber=0"]
@@ -180,15 +191,50 @@ def start_video(video_path):
             "--play-and-exit",
             "--no-video-title-show",
             "--no-osd",
-            "--no-qt-fs-controller",
             "--no-video-deco",
+            "--video-on-top",
+            "--intf",
+            "dummy",
+            "--dummy-quiet",
         ]
+        if os.path.basename(vlc_path).lower() == "vlc.exe":
+            vlc_args.extend(
+                [
+                    "--no-qt-system-tray",
+                    "--qt-start-minimized",
+                    "--qt-minimal-view",
+                    "--no-qt-fs-controller",
+                    "--no-qt-privacy-ask",
+                    "--no-qt-error-dialogs",
+                ]
+            )
+        # if not args.test:
+        #     vlc_args.extend(
+        #         [
+        #             "--video-splitter=wall",
+        #             "--wall-cols=2",
+        #             "--wall-rows=1",
+        #             "--no-embedded-video",
+        #             "--qt-fullscreen-screennumber=0",
+        #         ]
+        #     )
         if args.mute:
             vlc_args.append("--no-audio")
         if vlc_audio_device:
             vlc_args.extend(["--directx-audio-device", vlc_audio_device])
         print(f"VLC起動引数: {vlc_args}")
-        video_process = subprocess.Popen(vlc_args)
+        startupinfo = None
+        creationflags = 0
+        if os.name == "nt":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 0  # SW_HIDE
+            creationflags = subprocess.CREATE_NO_WINDOW
+        video_process = subprocess.Popen(
+            vlc_args,
+            startupinfo=startupinfo,
+            creationflags=creationflags,
+        )
         is_video_playing = True
         print(
             f"動画ファイル {video_path} をVLCで再生開始しました。"
@@ -231,6 +277,11 @@ def set_auto_item(index):
         current_image_path = ""
         print(f"未対応のファイル形式です: {current_auto_path}")
 
+last_image = pygame.Surface((screen_width, screen_height))
+last_image.fill((0, 0, 0))
+black_image = pygame.Surface((screen_width, screen_height))
+black_image.fill((0, 0, 0))
+
 
 # 起動時タイマー開始ロジック
 if auto_mode_active:
@@ -241,9 +292,6 @@ if auto_mode_active:
     else:
         print("autoフォルダに対象ファイルがありません。自動切り替えモードを無効化します。")
         auto_mode_active = False
-
-last_image = pygame.Surface((screen_width, screen_height))
-last_image.fill((0, 0, 0))
 
 running = True
 while running:
@@ -367,7 +415,7 @@ while running:
                 last_image = image
 
     # 画像を各ディスプレイに描画
-    image_to_draw = last_image
+    image_to_draw = black_image if is_video_playing else last_image
     screen1.blit(image_to_draw, (0, 0))
     if screen2 is not None:
         screen2.blit(image_to_draw, (0, 0))
